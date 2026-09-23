@@ -12,14 +12,19 @@ COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
-RUN npm install
+# Install all dependencies without trigger scripts
+RUN npm install --ignore-scripts
 
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY src ./src/
 
+# Generate prisma client & build
 RUN npx prisma generate
 RUN npm run build
+
+# Remove development dependencies, keep production and prisma
+RUN npm prune --production
 
 # ----------------------------------------------------
 # 2. PRODUCTION RUNNER STAGE
@@ -37,10 +42,8 @@ COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
-# Install production dependencies
-RUN npm install --omit=dev && npm cache clean --force
-RUN npx prisma generate
-
+# Copy pre-built production node_modules and dist directly from builder
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
 # Create uploads directory for persistent storage
