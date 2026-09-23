@@ -5,6 +5,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+ENV DATABASE_URL="postgresql://postgres:1402@postgres:5432/nyver_lms?schema=public"
+
 # Install openssl for Prisma
 RUN apk add --no-cache openssl
 
