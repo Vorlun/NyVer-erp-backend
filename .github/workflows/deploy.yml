@@ -1,0 +1,56 @@
+name: NyVer ERP Server CI/CD Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Backend & Database to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "🚀 Server deploy boshlandi..."
+
+            PROJECT_DIR="/var/www/nyver_erp"
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+
+            # Agar git klon qilinmagan bo'lsa
+            if [ ! -d ".git" ]; then
+              echo "Git repository klon qilinmoqda..."
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              echo "⬇️ Yangi kodlarni tortish..."
+              git fetch --all
+              git reset --hard origin/main || git reset --hard origin/master
+            fi
+
+            # Docker compose fayli joylashuvini aniqlash
+            if [ -f "docker-compose.yml" ]; then
+              echo "🐳 Docker (server & postgres) ishga tushirilmoqda..."
+              docker compose up -d --build postgres server
+            elif [ -d "server" ] && [ -f "server/docker-compose.yml" ]; then
+              cd server
+              echo "🐳 Docker (server & postgres) ishga tushirilmoqda..."
+              docker compose up -d --build postgres server
+            fi
+
+            # Keraksiz eski imagelarni tozalash
+            docker image prune -f
+
+            echo "✅ Server va DB muvaffaqiyatli yangilandi!"
+            docker compose ps

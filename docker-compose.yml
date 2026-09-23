@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------
+  # POSTGRESQL 16 (Port 1402 & Parol 1402)
+  # ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: nyver_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "1402"
+      POSTGRES_DB: nyver_lms
+    ports:
+      - "1402:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nyver_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nyver_lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------
+  # NESTJS BACKEND SERVER (Port 3000)
+  # ----------------------------------------------------
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nyver_server
+    restart: always
+    environment:
+      DATABASE_URL: "postgresql://postgres:1402@postgres:5432/nyver_lms?schema=public"
+      JWT_SECRET: "nyver_erp_super_secret_key_2026_do_not_share"
+      JWT_EXPIRES_IN: "15m"
+      JWT_REFRESH_SECRET: "nyver_erp_refresh_secret_key_2026"
+      JWT_REFRESH_EXPIRES_IN: "7d"
+      PORT: 3000
+      CLEAN_DB: "false"
+      MAIL_HOST: "smtp.gmail.com"
+      MAIL_PORT: "587"
+      MAIL_SECURE: "false"
+      MAIL_USER: "one.humoyun@gmail.com"
+      MAIL_PASS: "vwma xfpo loum ziwc"
+      MAIL_FROM: "NyVer Ta'lim Markazi <noreply@nyver.uz>"
+    volumes:
+      - server_uploads:/app/uploads
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nyver_network
+
+volumes:
+  postgres_data:
+    driver: local
+  server_uploads:
+    driver: local
+
+networks:
+  nyver_network:
+    driver: bridge
