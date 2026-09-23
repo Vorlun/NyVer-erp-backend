@@ -1,7 +1,7 @@
 # ----------------------------------------------------
 # 1. BUILD STAGE
 # ----------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -10,8 +10,9 @@ RUN apk add --no-cache openssl
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
-RUN npm ci
+RUN npm install
 
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
@@ -23,7 +24,7 @@ RUN npm run build
 # ----------------------------------------------------
 # 2. PRODUCTION RUNNER STAGE
 # ----------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -34,9 +35,10 @@ ENV PORT=3000
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
-# Install only production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
+# Install production dependencies
+RUN npm install --omit=dev && npm cache clean --force
 RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
