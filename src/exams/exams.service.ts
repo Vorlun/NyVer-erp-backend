@@ -84,7 +84,7 @@ export class ExamsService {
 
   // --- EXAM RESULTS ---
   async setResults(examId: number, results: ExamResultDto[]) {
-    await this.findOne(examId);
+    const exam = await this.findOne(examId);
 
     // Barcha eskisini o'chirib yangidan yozamiz
     await this.prisma.examResult.deleteMany({
@@ -92,12 +92,40 @@ export class ExamsService {
     });
 
     if (results.length > 0) {
-      const data = results.map((r) => ({
-        examId,
-        studentId: r.studentId,
-        score: r.score,
-      }));
-      await this.prisma.examResult.createMany({ data });
+      await this.prisma.$transaction(async (tx) => {
+        for (const r of results) {
+          await tx.examResult.create({
+            data: {
+              examId,
+              studentId: r.studentId,
+              score: r.score,
+            },
+          });
+
+          // Exam balliga qarab coin hisoblash:
+          // 90+ ball: 3 coin
+          // 70-89 ball: 2 coin
+          // 60-69 ball: 1 coin
+          const coinsEarned =
+            r.score >= 90 ? 3 : r.score >= 70 ? 2 : r.score >= 60 ? 1 : 0;
+
+          if (coinsEarned > 0) {
+            await tx.user.update({
+              where: { id: r.studentId },
+              data: { coins: { increment: coinsEarned } },
+            });
+
+            await tx.coinTransaction.create({
+              data: {
+                amount: coinsEarned,
+                reason: 'EXAM_TOP',
+                description: `${exam.title} imtihoni natijasi: ${r.score} ball`,
+                userId: r.studentId,
+              },
+            });
+          }
+        }
+      });
     }
 
     return this.findOne(examId);

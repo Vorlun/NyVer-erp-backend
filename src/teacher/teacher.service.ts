@@ -415,11 +415,13 @@ export class TeacherService {
     const coinsEarned =
       dto.coinsEarned !== undefined
         ? dto.coinsEarned
-        : dto.score >= 80
-          ? (submission.homework?.maxCoins || 10)
-          : dto.score >= 60
-            ? Math.floor((submission.homework?.maxCoins || 10) / 2)
-            : 0;
+        : dto.score >= 90
+          ? 3
+          : dto.score >= 70
+            ? 2
+            : dto.score >= 60
+              ? 1
+              : 0;
 
     const newStatus: HomeworkSubmissionStatus =
       dto.status || (dto.score >= 60 ? 'CHECKED' : 'REJECTED');

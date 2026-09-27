@@ -50,7 +50,7 @@ export class AttendanceService {
       for (const record of dto.records) {
         const coinsEarned =
           record.coinsEarned ??
-          (record.status === 'PRESENT' ? 2 : record.status === 'LATE' ? 1 : 0);
+          (record.status === 'PRESENT' ? 1 : 0);
 
         const attendance = await tx.attendance.upsert({
           where: {

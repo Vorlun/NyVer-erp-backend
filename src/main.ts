@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { WsAdapter } from '@nestjs/platform-ws';
 import * as path from 'path';
 import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module.js';
@@ -10,6 +11,9 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor.
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // ── WebSocket Adapter (ws) ────────────────────────────────────────────────
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   // ── Body-parser limits (base64 rasm yuklash uchun 50mb) ─────────────────
   app.use(bodyParser.json({ limit: '50mb' }));

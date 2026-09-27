@@ -163,7 +163,7 @@ export class UsersService {
           },
         },
         coinTransactions: {
-          take: 20,
+          take: 100,
           orderBy: { created_at: 'desc' },
         },
       },

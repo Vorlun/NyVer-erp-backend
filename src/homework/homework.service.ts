@@ -185,11 +185,13 @@ export class HomeworkService {
 
     const coinsEarned =
       dto.coinsEarned ??
-      (dto.score >= 80
-        ? submission.homework.maxCoins
-        : dto.score >= 60
-          ? Math.floor(submission.homework.maxCoins / 2)
-          : 0);
+      (dto.score >= 90
+        ? 3
+        : dto.score >= 70
+          ? 2
+          : dto.score >= 60
+            ? 1
+            : 0);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.homeworkSubmission.update({
