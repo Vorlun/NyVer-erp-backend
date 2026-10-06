@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -43,6 +43,18 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Token yaroqsiz yoki muddati o\'tgan' })
   async setPassword(@Body() dto: SetPasswordDto) {
     return this.authService.setPassword(dto);
+  }
+
+  @Patch('change-temp-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '1 martalik vaqtinchalik parolni yangisiga almashtirish' })
+  @ApiResponse({ status: 200, description: 'Parol muvaffaqiyatli o\'zgartirildi' })
+  async changeTempPassword(
+    @Req() req: AuthenticatedRequest,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.changeTempPassword(req.user.id, newPassword);
   }
 
   @Get('me')

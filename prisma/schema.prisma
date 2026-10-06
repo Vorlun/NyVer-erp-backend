@@ -139,6 +139,7 @@ model Course {
 
   groups   Group[]
   syllabus CourseSyllabus[]
+  plans    CoursePlan[]
   payments Payment[]
 }
 
@@ -153,6 +154,35 @@ model CourseSyllabus {
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, lessonOrder])
+}
+
+// Bir nechta o'quv rejalari (Curriculum Plans) bir kursda bo'lishi mumkin
+model CoursePlan {
+  id          Int      @id @default(autoincrement())
+  title       String   // e.g. "Standart Dastur (2026)", "Intensiv Bootcamp"
+  description String?
+  isDefault   Boolean  @default(false)
+  courseId    Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  course  Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons CoursePlanLesson[]
+  groups  Group[]
+
+  @@index([courseId])
+}
+
+model CoursePlanLesson {
+  id          Int     @id @default(autoincrement())
+  lessonOrder Int
+  topic       String
+  description String?
+  planId      Int
+
+  plan CoursePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, lessonOrder])
 }
 
 model Room {
@@ -185,12 +215,14 @@ model Group {
 
   courseId Int
   roomId   Int
+  planId   Int?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   course   Course         @relation(fields: [courseId], references: [id])
   room     Room           @relation(fields: [roomId], references: [id])
+  plan     CoursePlan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
   students GroupStudent[]
   teachers GroupTeacher[]
   lessons  Lesson[]

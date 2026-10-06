@@ -13,6 +13,44 @@ import {
   AddTeacherDto,
 } from './dto/create-group.dto.js';
 import type { Prisma } from '@prisma/client';
+import { WeekDay } from '@prisma/client';
+
+const weekDayOrder: Record<WeekDay, number> = {
+  SUNDAY: 0,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+};
+
+export function calculateScheduleDates(
+  startDate: Date,
+  weekDays: WeekDay[],
+  totalCount: number,
+): Date[] {
+  const dates: Date[] = [];
+  const targetDayNums = new Set(weekDays.map((w) => weekDayOrder[w]));
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+
+  if (targetDayNums.size === 0) {
+    targetDayNums.add(1);
+    targetDayNums.add(3);
+    targetDayNums.add(5);
+  }
+
+  let iterations = 0;
+  while (dates.length < totalCount && iterations < 800) {
+    iterations++;
+    if (targetDayNums.has(current.getDay())) {
+      dates.push(new Date(current));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
 
 @Injectable()
 export class GroupsService {
@@ -31,7 +69,21 @@ export class GroupsService {
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        course: true,
+        course: {
+          include: {
+            plans: {
+              include: {
+                lessons: { orderBy: { lessonOrder: 'asc' } },
+              },
+              orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+            },
+          },
+        },
+        plan: {
+          include: {
+            lessons: { orderBy: { lessonOrder: 'asc' } },
+          },
+        },
         room: true,
         teachers: {
           include: {
@@ -63,6 +115,84 @@ export class GroupsService {
     });
   }
 
+  async generateLessonsForGroup(groupId: number, planId?: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        course: {
+          include: {
+            plans: {
+              include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+              orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+            },
+          },
+        },
+        plan: {
+          include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+        },
+        teachers: true,
+      },
+    });
+    if (!group) return;
+
+    const targetPlanId = planId || group.planId || group.course?.plans?.[0]?.id;
+    if (!targetPlanId) return;
+
+    const plan =
+      group.plan?.id === targetPlanId
+        ? group.plan
+        : await this.prisma.coursePlan.findUnique({
+            where: { id: targetPlanId },
+            include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+          });
+
+    if (!plan || plan.lessons.length === 0) return;
+
+    // Check existing lessons in group
+    const existingLessons = await this.prisma.lesson.findMany({
+      where: { groupId },
+      select: { lessonOrder: true },
+    });
+    const existingOrders = new Set(existingLessons.map((l) => l.lessonOrder));
+
+    const mainTeacher = group.teachers.find((t) => t.isMain) || group.teachers[0];
+    const teacherId = mainTeacher ? mainTeacher.teacherId : null;
+
+    const dates = calculateScheduleDates(
+      new Date(group.startDate),
+      group.weekDays,
+      plan.lessons.length,
+    );
+
+    const lessonsToCreate = plan.lessons
+      .filter((pl) => !existingOrders.has(pl.lessonOrder))
+      .map((pl, idx) => ({
+        groupId: group.id,
+        lessonOrder: pl.lessonOrder,
+        topic: pl.topic,
+        description: pl.description || null,
+        lessonDate: dates[idx] || new Date(),
+        startTime: group.startTime,
+        endTime: group.endTime,
+        roomId: group.roomId,
+        teacherId,
+      }));
+
+    if (lessonsToCreate.length > 0) {
+      await this.prisma.lesson.createMany({
+        data: lessonsToCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    if (group.planId !== targetPlanId) {
+      await this.prisma.group.update({
+        where: { id: groupId },
+        data: { planId: targetPlanId },
+      });
+    }
+  }
+
   async findOne(id: number) {
     const group = await this.prisma.group.findUnique({
       where: { id },
@@ -72,6 +202,17 @@ export class GroupsService {
             syllabus: {
               orderBy: { lessonOrder: 'asc' },
             },
+            plans: {
+              include: {
+                lessons: { orderBy: { lessonOrder: 'asc' } },
+              },
+              orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+            },
+          },
+        },
+        plan: {
+          include: {
+            lessons: { orderBy: { lessonOrder: 'asc' } },
           },
         },
         room: true,
@@ -111,14 +252,69 @@ export class GroupsService {
           },
         },
         lessons: {
-          orderBy: { lessonDate: 'asc' },
-          take: 30,
+          orderBy: { lessonOrder: 'asc' },
+          include: {
+            homework: true,
+            materials: true,
+            _count: { select: { attendances: true } },
+          },
         },
         _count: { select: { lessons: true, students: true, teachers: true } },
       },
     });
 
     if (!group) throw new NotFoundException(`Guruh (ID: ${id}) topilmadi`);
+
+    // Auto-generate lessons if missing but plan exists
+    if (group.lessons.length === 0 && (group.planId || (group.course?.plans && group.course.plans.length > 0))) {
+      await this.generateLessonsForGroup(group.id, group.planId || group.course.plans[0].id);
+      const refreshed = await this.prisma.group.findUnique({
+        where: { id },
+        include: {
+          course: {
+            include: {
+              plans: {
+                include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+                orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+              },
+            },
+          },
+          plan: {
+            include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+          },
+          room: true,
+          students: {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                  email: true,
+                  photo: true,
+                  coins: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          teachers: { include: { teacher: true } },
+          lessons: {
+            orderBy: { lessonOrder: 'asc' },
+            include: {
+              homework: true,
+              materials: true,
+              _count: { select: { attendances: true } },
+            },
+          },
+          _count: { select: { lessons: true, students: true, teachers: true } },
+        },
+      });
+      if (!refreshed) throw new NotFoundException(`Guruh (ID: ${id}) topilmadi`);
+      return refreshed;
+    }
+
     return group;
   }
 
@@ -131,6 +327,11 @@ export class GroupsService {
 
     const course = await this.prisma.course.findUnique({
       where: { id: dto.courseId },
+      include: {
+        plans: {
+          orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+        },
+      },
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
 
@@ -139,7 +340,13 @@ export class GroupsService {
     });
     if (!room) throw new NotFoundException('Xona topilmadi');
 
-    return this.prisma.group.create({
+    // Auto-resolve planId: use dto.planId or default to the latest/default course plan
+    let planId = dto.planId || null;
+    if (!planId && course.plans.length > 0) {
+      planId = course.plans[0].id;
+    }
+
+    const group = await this.prisma.group.create({
       data: {
         name: dto.name,
         startDate: new Date(dto.startDate),
@@ -150,6 +357,7 @@ export class GroupsService {
         weekDays: dto.weekDays,
         courseId: dto.courseId,
         roomId: dto.roomId,
+        planId,
         teachers: dto.teacherId
           ? {
               create: {
@@ -159,8 +367,28 @@ export class GroupsService {
             }
           : undefined,
       },
-      include: { course: true, room: true, teachers: { include: { teacher: true } } },
+      include: {
+        course: {
+          include: {
+            plans: {
+              include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+              orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+            },
+          },
+        },
+        plan: {
+          include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+        },
+        room: true,
+        teachers: { include: { teacher: true } },
+      },
     });
+
+    if (planId) {
+      await this.generateLessonsForGroup(group.id, planId);
+    }
+
+    return group;
   }
 
   async update(id: number, dto: UpdateGroupDto) {
@@ -185,6 +413,9 @@ export class GroupsService {
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.roomId !== undefined) data.room = { connect: { id: dto.roomId } };
     if (dto.courseId !== undefined) data.course = { connect: { id: dto.courseId } };
+    if (dto.planId !== undefined) {
+      data.plan = dto.planId ? { connect: { id: dto.planId } } : { disconnect: true };
+    }
 
     if (dto.teacherId !== undefined) {
       await this.prisma.groupTeacher.deleteMany({ where: { groupId: id } });
@@ -204,6 +435,7 @@ export class GroupsService {
       data,
       include: {
         course: true,
+        plan: { include: { lessons: { orderBy: { lessonOrder: 'asc' } } } },
         room: true,
         teachers: { include: { teacher: true } },
         students: { include: { student: true } },

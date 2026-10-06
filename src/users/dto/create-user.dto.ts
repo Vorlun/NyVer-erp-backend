@@ -35,11 +35,11 @@ export class CreateUserDto {
   @IsEmail({}, { message: "Noto'g'ri email formati" })
   email?: string;
 
-  @ApiProperty({ description: 'Parol (kamida 6 belgi)', example: '123456' })
-  @IsNotEmpty({ message: "Parol bo'sh bo'lmasligi kerak" })
+  @ApiPropertyOptional({ description: 'Parol (kamida 6 belgi)', example: '123456' })
+  @IsOptional()
   @IsString()
   @MinLength(6, { message: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" })
-  password: string;
+  password?: string;
 
   @ApiPropertyOptional({ description: "Tug'ilgan sana", example: '2000-01-15' })
   @IsOptional()

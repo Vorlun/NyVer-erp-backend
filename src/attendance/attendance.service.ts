@@ -45,6 +45,17 @@ export class AttendanceService {
     if (!lesson) throw new NotFoundException('Dars topilmadi');
 
     const results = await this.prisma.$transaction(async (tx) => {
+      if (dto.topic || dto.description !== undefined || dto.content !== undefined) {
+        await tx.lesson.update({
+          where: { id: dto.lessonId },
+          data: {
+            ...(dto.topic ? { topic: dto.topic } : {}),
+            ...(dto.description !== undefined ? { description: dto.description } : {}),
+            ...(dto.content !== undefined ? { content: dto.content } : {}),
+          },
+        });
+      }
+
       const attendances = [];
 
       for (const record of dto.records) {

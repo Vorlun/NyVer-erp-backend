@@ -11,6 +11,7 @@ import {
   CreateTeacherHomeworkDto,
 } from './dto/teacher.dto.js';
 import type { HomeworkSubmissionStatus } from '@prisma/client';
+import { calculateScheduleDates } from '../groups/groups.service.js';
 
 @Injectable()
 export class TeacherService {
@@ -110,13 +111,25 @@ export class TeacherService {
   }
 
   // ============ 2. BITTA GURUH TAFSILOTLARI ============
-  async getTeacherGroup(groupId: number, teacherId: number, role: string) {
+  async getTeacherGroup(groupId: number, teacherId: number, role: string): Promise<any> {
     await this.verifyTeacherGroupAccess(groupId, teacherId, role);
 
     const group = await this.prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        course: true,
+        course: {
+          include: {
+            plans: {
+              include: { lessons: { orderBy: { lessonOrder: 'asc' } } },
+              orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+            },
+          },
+        },
+        plan: {
+          include: {
+            lessons: { orderBy: { lessonOrder: 'asc' } },
+          },
+        },
         room: true,
         students: {
           where: { status: 'ACTIVE' },
@@ -148,6 +161,7 @@ export class TeacherService {
                 score: true,
               },
             },
+            _count: { select: { attendances: true } },
           },
         },
       },
@@ -155,6 +169,40 @@ export class TeacherService {
 
     if (!group) {
       throw new NotFoundException(`Guruh (ID: ${groupId}) topilmadi`);
+    }
+
+    // Agar guruhda darslar bo'lmasa, rejadan avtomatik generatsiya qilamiz
+    if (group.lessons.length === 0 && (group.planId || (group.course?.plans && group.course.plans.length > 0))) {
+      const targetPlan = group.plan || group.course?.plans?.[0];
+      if (targetPlan && targetPlan.lessons?.length > 0) {
+        const dates = calculateScheduleDates(
+          new Date(group.startDate),
+          group.weekDays,
+          targetPlan.lessons.length,
+        );
+        const lessonsToCreate = targetPlan.lessons.map((pl, idx) => ({
+          groupId: group.id,
+          lessonOrder: pl.lessonOrder,
+          topic: pl.topic,
+          description: pl.description || null,
+          lessonDate: dates[idx] || new Date(),
+          startTime: group.startTime,
+          endTime: group.endTime,
+          roomId: group.roomId,
+          teacherId,
+        }));
+        await this.prisma.lesson.createMany({
+          data: lessonsToCreate,
+          skipDuplicates: true,
+        });
+        if (group.planId !== targetPlan.id) {
+          await this.prisma.group.update({
+            where: { id: groupId },
+            data: { planId: targetPlan.id },
+          });
+        }
+        return this.getTeacherGroup(groupId, teacherId, role);
+      }
     }
 
     const coursePrice = Number(group.course?.price || 0);
@@ -180,6 +228,7 @@ export class TeacherService {
         lessonDate: l.lessonDate ? l.lessonDate.toISOString().slice(0, 10) : null,
         startTime: l.startTime,
         endTime: l.endTime,
+        attendanceCount: (l as any)._count?.attendances || 0,
         homework: l.homework
           ? {
               id: l.homework.id,

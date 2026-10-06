@@ -72,6 +72,12 @@ export class CreateGroupDto {
   @Type(() => Number)
   @IsInt()
   teacherId?: number;
+
+  @ApiPropertyOptional({ description: "O'quv reja ID", example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  planId?: number;
 }
 
 export class UpdateGroupDto {
@@ -139,6 +145,12 @@ export class UpdateGroupDto {
   @Type(() => Number)
   @IsInt()
   teacherId?: number;
+
+  @ApiPropertyOptional({ description: "O'quv reja ID" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  planId?: number;
 }
 
 export class QueryGroupDto {
@@ -158,6 +170,12 @@ export class QueryGroupDto {
   @Type(() => Number)
   @IsInt()
   teacherId?: number;
+
+  @ApiPropertyOptional({ description: "O'quv reja ID", example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  planId?: number;
 }
 
 export class AddStudentDto {

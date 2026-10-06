@@ -224,6 +224,110 @@ export class MailService {
   }
 
   /**
+   * Yangi student qo'shilganda — login va 1 marttalik vaqtinchalik parol yuborish
+   */
+  async sendStudentCredentialsEmail(options: {
+    to: string;
+    studentName: string;
+    login: string;
+    tempPassword: string;
+    loginUrl?: string;
+  }): Promise<boolean> {
+    const { to, studentName, login, tempPassword, loginUrl = 'http://localhost:5173/login' } = options;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NyVer — Shaxsiy Kabinet Ma'lumotlari</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 28px 16px; color: #1e293b; }
+    .wrap { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(109,40,217,0.08); }
+    .header { background: linear-gradient(135deg, #6D28D9 0%, #4F46E5 100%); padding: 36px 30px; text-align: center; color: #ffffff; }
+    .header h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .header p { font-size: 14px; opacity: 0.9; }
+    .content { padding: 32px 28px; }
+    .badge { display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 9999px; margin-bottom: 16px; }
+    .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
+    .intro { font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 22px; }
+    .card { background: #faf5ff; border: 1.5px solid #ddd6fe; border-radius: 16px; padding: 22px; margin-bottom: 24px; }
+    .card-title { font-size: 13px; font-weight: 800; color: #5b21b6; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }
+    .card-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #c4b5fd; }
+    .card-row:last-child { border-bottom: none; }
+    .label { font-size: 13px; font-weight: 600; color: #6b21a8; }
+    .val { font-size: 15px; font-weight: 800; color: #1e1b4b; font-family: monospace; }
+    .password-badge { background: #6d28d9; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-size: 15px; font-weight: 800; letter-spacing: 1px; }
+    .alert-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+    .alert-title { font-size: 13px; font-weight: 700; color: #b45309; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .alert-text { font-size: 12.5px; line-height: 1.5; color: #92400e; }
+    .btn-wrap { text-align: center; margin: 28px 0 12px; }
+    .btn { display: inline-block; background: #6D28D9; color: #ffffff !important; font-size: 15px; font-weight: 700; padding: 14px 34px; border-radius: 12px; text-decoration: none; box-shadow: 0 4px 14px rgba(109,40,217,0.35); }
+    .footer { text-align: center; padding: 20px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #fdfdfd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>NyVer O'quv Markazi</h1>
+      <p>Kelajak kasblari va zamonaviy ta'lim maskani</p>
+    </div>
+    <div class="content">
+      <div class="badge">Akkaunt Yaratildi ✨</div>
+      <div class="greeting">Assalomu alaykum, ${studentName}!</div>
+      <p class="intro">
+        Siz uchun NyVer O'quv Markazi platformasida shaxsiy talaba kabineti ochildi. Quyida tizimga kirish rekvizitlaringiz:
+      </p>
+
+      <div class="card">
+        <div class="card-title">Kirish Ma'lumotlari</div>
+        <div class="card-row">
+          <span class="label">Login (Email / Tel):</span>
+          <span class="val">${login}</span>
+        </div>
+        <div class="card-row">
+          <span class="label">1 martalik parol:</span>
+          <span class="password-badge">${tempPassword}</span>
+        </div>
+      </div>
+
+      <div class="alert-box">
+        <div class="alert-title">⚠️ DIQQAT: Yangi parol o'rnatish shart!</div>
+        <p class="alert-text">
+          Ushbu parol faqat <strong>1 martalik vaqtinchalik parol</strong> hisoblanadi. Tizimga ilk bor kirganingizda, xavfsizlik nuqtai nazaridan tizim sizdan darhol yangi doimiy shaxsiy parol qo'yishni so'raydi.
+        </p>
+      </div>
+
+      <div class="btn-wrap">
+        <a href="${loginUrl}" class="btn">Tizimga Kirish →</a>
+      </div>
+    </div>
+    <div class="footer">
+      © ${new Date().getFullYear()} NyVer O'quv Markazi. Barcha huquqlar himoyalangan.<br>
+      Savollaringiz bo'lsa ma'muriyatimiz bilan bog'laning.
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return this.dispatchMail({
+      to,
+      subject: `🎓 NyVer — Shaxsiy talaba kabinetingiz yaratildi (Login va 1 martalik parol)`,
+      html: htmlContent,
+      debugInfo: {
+        type: 'STUDENT_CREDENTIALS',
+        studentName,
+        to,
+        login,
+        password: tempPassword,
+      },
+    });
+  }
+
+  /**
    * Admin tomonidan yangi akkaunt yaratilganda — faqat login va parol o'rnatish havolasi
    */
   async sendAdminCreatedAccountEmail(

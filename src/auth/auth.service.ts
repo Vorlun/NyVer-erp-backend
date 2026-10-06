@@ -55,6 +55,7 @@ export class AuthService {
 
     return {
       user: userWithoutPassword,
+      mustChangePassword: !!user.tempPassword,
       ...tokens,
     };
   }
@@ -84,6 +85,7 @@ export class AuthService {
 
       return {
         user: userWithoutPassword,
+        mustChangePassword: !!user.tempPassword,
         ...tokens,
       };
     } catch {
@@ -103,6 +105,7 @@ export class AuthService {
         role: true,
         email: true,
         phone: true,
+        tempPassword: true,
         birthDate: true,
         photo: true,
         coins: true,
@@ -118,6 +121,46 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async changeTempPassword(userId: number, newPassword: string) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException("Parol kamida 6 ta belgidan iborat bo'lishi kerak");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Foydalanuvchi topilmadi');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        tempPassword: null,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        email: true,
+        phone: true,
+        tempPassword: true,
+        status: true,
+      },
+    });
+
+    return {
+      message: "Parol muvaffaqiyatli o'zgartirildi",
+      user: updated,
+    };
   }
 
   async setPassword(dto: SetPasswordDto) {
@@ -148,6 +191,7 @@ export class AuthService {
       where: { id: user.id },
       data: {
         password: hashed,
+        tempPassword: null,
         status: 'ACTIVE',
       },
     });

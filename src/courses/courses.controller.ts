@@ -21,6 +21,10 @@ import {
   CreateCourseSyllabusDto,
   UpdateCourseSyllabusDto,
 } from './dto/course-syllabus.dto.js';
+import {
+  CreateCoursePlanDto,
+  UpdateCoursePlanDto,
+} from './dto/course-plan.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -100,5 +104,53 @@ export class CoursesController {
     @Param('syllabusId', ParseIntPipe) syllabusId: number,
   ) {
     return this.coursesService.removeSyllabus(courseId, syllabusId);
+  }
+
+  @Post(':id/syllabus/batch')
+  @Roles('ADMIN', 'SUPERADMIN', 'TEACHER')
+  @ApiOperation({ summary: "Kurs dars jadvali / o'quv rejasini to'liq yuklash (batch)" })
+  async batchSetSyllabus(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Body() body: { items: CreateCourseSyllabusDto[] },
+  ) {
+    return this.coursesService.batchSetSyllabus(courseId, body.items || []);
+  }
+
+  // --- COURSE PLANS (Bir nechta o'quv rejalari) ---
+  @Get(':id/plans')
+  @ApiOperation({ summary: "Kursning barcha o'quv rejalari ro'yxati" })
+  async getCoursePlans(@Param('id', ParseIntPipe) courseId: number) {
+    return this.coursesService.getCoursePlans(courseId);
+  }
+
+  @Post(':id/plans')
+  @Roles('ADMIN', 'SUPERADMIN', 'TEACHER')
+  @ApiOperation({ summary: "Kursga yangi o'quv reja qo'shish" })
+  async createCoursePlan(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Body() dto: CreateCoursePlanDto,
+  ) {
+    return this.coursesService.createCoursePlan(courseId, dto);
+  }
+
+  @Patch(':id/plans/:planId')
+  @Roles('ADMIN', 'SUPERADMIN', 'TEACHER')
+  @ApiOperation({ summary: "Kurs o'quv rejasini tahrirlash" })
+  async updateCoursePlan(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Param('planId', ParseIntPipe) planId: number,
+    @Body() dto: UpdateCoursePlanDto,
+  ) {
+    return this.coursesService.updateCoursePlan(courseId, planId, dto);
+  }
+
+  @Delete(':id/plans/:planId')
+  @Roles('ADMIN', 'SUPERADMIN')
+  @ApiOperation({ summary: "Kurs o'quv rejasini o'chirish" })
+  async deleteCoursePlan(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Param('planId', ParseIntPipe) planId: number,
+  ) {
+    return this.coursesService.deleteCoursePlan(courseId, planId);
   }
 }

@@ -107,4 +107,15 @@ export class GroupsController {
   ) {
     return this.groupsService.removeTeacher(id, teacherId);
   }
+
+  @Post(':id/generate-lessons')
+  @Roles('ADMIN', 'SUPERADMIN', 'TEACHER')
+  @ApiOperation({ summary: "Guruh o'quv rejasidan darslar jadvalini generatsiya qilish" })
+  async generateLessons(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('planId') planId?: number,
+  ) {
+    await this.groupsService.generateLessonsForGroup(id, planId);
+    return this.groupsService.findOne(id);
+  }
 }

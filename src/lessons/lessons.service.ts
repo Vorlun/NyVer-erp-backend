@@ -41,12 +41,16 @@ export class LessonsService {
 
     return this.prisma.lesson.findMany({
       where,
-      orderBy: [{ lessonDate: 'desc' }, { lessonOrder: 'asc' }],
+      orderBy: query.groupId
+        ? [{ lessonOrder: 'asc' }]
+        : [{ lessonDate: 'desc' }, { lessonOrder: 'asc' }],
       include: {
         group: { select: { id: true, name: true } },
         teacher: { select: { id: true, firstName: true, lastName: true } },
         room: { select: { id: true, name: true } },
         homework: { select: { id: true, title: true } },
+        materials: true,
+        attendances: true,
         _count: { select: { attendances: true } },
       },
     });

@@ -44,6 +44,21 @@ export class BulkAttendanceDto {
   @Type(() => Number)
   lessonId: number;
 
+  @ApiPropertyOptional({ description: "Dars mavzusi (agar o'qituvchi yangi mavzu yozgan bo'lsa)" })
+  @IsOptional()
+  @IsString()
+  topic?: string;
+
+  @ApiPropertyOptional({ description: "Dars tavsifi / materiallari" })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: "Dars kontenti / material matni" })
+  @IsOptional()
+  @IsString()
+  content?: string;
+
   @ApiProperty({
     description: 'Davomat yozuvlari',
     type: [AttendanceRecordDto],

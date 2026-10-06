@@ -197,7 +197,9 @@ export class UsersService {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const plainPassword = dto.password?.trim() || `NyVer#${Math.floor(1000 + Math.random() * 9000)}`;
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    const tempPassword = dto.role === 'STUDENT' ? plainPassword : null;
 
     const user = await this.prisma.user.create({
       data: {
@@ -207,6 +209,7 @@ export class UsersService {
         phone: dto.phone,
         email: dto.email || null,
         password: hashedPassword,
+        tempPassword,
         birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         address: dto.address || null,
         photo: dto.photo || null,
@@ -218,6 +221,7 @@ export class UsersService {
         role: true,
         email: true,
         phone: true,
+        tempPassword: true,
         birthDate: true,
         photo: true,
         coins: true,
@@ -228,29 +232,42 @@ export class UsersService {
       },
     });
 
-    // Email mavjud bo'lsa, fonga parol o'rnatish havolasini yuborish
+    // Email mavjud bo'lsa, xat yuborish
     if (user.email) {
       const login = user.email || user.phone;
-      const inviteToken = await this.jwtService.signAsync(
-        { sub: user.id, type: 'set-password' },
-        {
-          secret: this.configService.get<string>('JWT_SECRET'),
-          expiresIn: '24h',
-        },
-      );
-      const frontendUrl =
-        this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-      const setPasswordUrl = `${frontendUrl}/set-password?token=${inviteToken}`;
-
-      try {
-        await this.mailService.sendAdminCreatedAccountEmail(
-          user.email,
-          `${user.firstName} ${user.lastName}`,
-          login,
-          setPasswordUrl,
+      if (dto.role === 'STUDENT') {
+        try {
+          await this.mailService.sendStudentCredentialsEmail({
+            to: user.email,
+            studentName: `${user.firstName} ${user.lastName}`.trim(),
+            login,
+            tempPassword: plainPassword,
+          });
+        } catch (err: any) {
+          this.logger.error(`Student email yuborishda xatolik: ${err.message}`, err.stack);
+        }
+      } else {
+        const inviteToken = await this.jwtService.signAsync(
+          { sub: user.id, type: 'set-password' },
+          {
+            secret: this.configService.get<string>('JWT_SECRET'),
+            expiresIn: '24h',
+          },
         );
-      } catch (err: any) {
-        this.logger.error(`Email yuborishda xatolik: ${err.message}`, err.stack);
+        const frontendUrl =
+          this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+        const setPasswordUrl = `${frontendUrl}/set-password?token=${inviteToken}`;
+
+        try {
+          await this.mailService.sendAdminCreatedAccountEmail(
+            user.email,
+            `${user.firstName} ${user.lastName}`.trim(),
+            login,
+            setPasswordUrl,
+          );
+        } catch (err: any) {
+          this.logger.error(`Email yuborishda xatolik: ${err.message}`, err.stack);
+        }
       }
     }
 
